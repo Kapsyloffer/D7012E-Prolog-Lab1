@@ -13,53 +13,58 @@
 %the goal should fail.
 %You are free to choose whatever representation of the state as you see fit.
 
+% State representation: state(RobotRoom, RobotItems, Keys)
+% RobotRoom: The current room of the robot (r1, r2, or r3)
+% RobotItems: The items carried by the robot (a list of keys and the package)
+% Keys: The keys available to the robot (a list of keys)
 
-hello_world :-
-    write("Hello world!").
+%facts
+room(r1).
+room(r2).
+room(r2).
 
-%pick up the s_key in room 1
+item(box).
+item(steelKey).
+item(brassKey).
 
-%go to room 2
+%room connections
+connected(r1, r2).
+connected(r1, r3).
 
-%pick up the b_key
+%the robot
+robot(B) :-
+    item(I1), item(I2). % 2 inventory slots
+    B = hold(I1, I2).
 
-%go to room 1
+room_item(I, R) :-
+    item(I), room(R).
 
-%drop the s_key
-
-%go to room 3
-
-%pickup the package
-
-%go to room 1
-
-%drop the package
-
-%win
+% Item is present in a room
+in_room(Item, Room) :- item(Item), room(Room).
 
 
-% recursive steps
+%moves
+%allow the robot to move
+move(Bot, CurRoom, NextRoom):-
+    room(CurRoom).
+    room(NextRoom).
+    connected(CurRoom, NextRoom).
+    robot(Bot).
 
-move( state( middle, onbox, middle, hasnot),
-      grasp,
-      state( middle, onbox, middle, has) ).    
+%The robot picks up an item in the room
+pick_up(Item, Room, Bot) :-
+    in_room(Item, Room),
+    robot(Bot),
+    \+ Character = hold(_, _),  % Character cannot hold more than two items
+    assert(picked_up(Item)).    % Mark item as picked up
 
-move( state( P, onfloor, P, H),
-      climb,
-      state( P, onbox, P, H) ).   
 
-move( state( P1, onfloor, P1, H),
-      push( P1, P2),
-      state( P2, onfloor, P2, H) ).
+%Let the robot drop a specific item
+drop(Item, Bot) :-
+    robot(Bot),
+    robot = hold(Item, _),
+    retract(picked_up(Item)),   % Mark item as not picked up
+    assert(in_room(Item, Room)). % Mark item as present in the room
 
-move( state( P1, onfloor, B, H),
-      walk( P1, P2),
-      state( P2, onfloor, B, H) ).                   
-
-canget( state( _, _, _, has), [done| []]).       
-
-canget( State1, [Move| Trace2])  :-
-    move( State1, Move, State2),
-    canget( State2, Trace2). 
-
-% canget(state(atdoor,onfloor,atwindow,hasnot), R).
+%Queries
+? - move(Bot, CurRoom, NextRoom).
