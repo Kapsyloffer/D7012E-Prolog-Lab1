@@ -17,28 +17,28 @@ robot(B) :-
     item(I1), item(I2), % 2 inventory slots
     B = hold(I1, I2).
 
+%place items in the room
 room_item(I, R) :-
     item(I), room(R).
 
 %key requirement for the doors
-requires_key(r2, steelKey).
-requires_key(r3, brassKey).
+requires_key(r1, r2, steelKey).
+requires_key(r2, r1, steelKey).
+requires_key(r1, r3, brassKey).
+requires_key(r3, r1, brassKey).
 
 %If an item is in the room
-in_room(Item, Room) :- item(Item), room(Room), \+ picked_up(Item).
+in_room(Item, Room) :- item(Item), room(Room).
 
 %we can only access a room if we have the key
-can_access(Bot, Room) :-
-    room(Room),
+can_access(Bot, CurRoom, NextRoom) :-
+    room(NextRoom),
     (
-        \+ requires_key(Room, _)
+        \+ requires_key(CurRoom, NextRoom, _)
         ;
-        requires_key(Room, Key),
+        requires_key(CurRoom, NextRoom, Key),
         Bot = hold(Key, _)
     ).
-
-% Item has been picked up
-picked_up(Item) :- pick_up(Item, _, _).
 
 %moves
 %allow the robot to move
@@ -49,22 +49,17 @@ move(Bot, CurRoom, NextRoom):-
     robot(Bot).
 
 %The robot picks up an item in the room
-pick_up(Item, Room, Bot) :-
+pick_up(Bot, Room, Item) :-
     in_room(Item, Room),
     robot(Bot),
     \+ Bot = hold(_, _),  % The robot cannot hold more than 2 items
     assert(picked_up(Item)).    % Mark it as picked up.
 
 % Let the robot drop a specific item
-drop(Item, Bot, Room) :-
+drop(Bot, Room, Item) :-
     robot(Bot),
     Bot = hold(Item, _),
-    retract(picked_up(Item)),   % Mark the item not picked up
-    assert(in_room(Item, Room)).   % Place it in the room
-
-% Check if the win condition is met
-wincon :-
-    in_room(box, r2).
+    room_item(Item, Room).
 
 % Solve the problem within N steps
 solveR(State, N, Trace) :-
@@ -73,12 +68,23 @@ solveR(State, N, Trace) :-
 solveR(_, _, 0, _, _) :-
     fail. % No solution found within N steps.
 
-solveR(_, _, _, Trace, Trace) :-
-    wincon.
+solveR(_, _, 0, Trace, Trace) :-
+    in_room(box, r2).
 
 solveR(State, Bot, N, AccTrace, Trace) :-
     N > 0,
     move(Bot, CurRoom, NextRoom),
-    drop(Item, Bot, CurRoom),
     NewN is N - 1,
-    solveR(State, Bot, NewN, [drop(Item, NextRoom) | AccTrace], Trace).
+    solveR(State, Bot, NewN, [move(Bot, CurRoom, NextRoom) | AccTrace], Trace).
+
+solveR(State, Bot, N, AccTrace, Trace) :-
+    N > 0,
+    drop(Bot, CurRoom, Item),
+    NewN is N - 1,
+    solveR(State, Bot, NewN, [drop(Bot, CurRoom, Item) | AccTrace], Trace).
+
+solveR(State, Bot, N, AccTrace, Trace) :-
+    N > 0,
+    pick_up(Bot, CurRoom, Item),
+    NewN is N - 1,
+    solveR(State, Bot, NewN, [pick_up(Bot, CurRoom, Item) | AccTrace], Trace).
