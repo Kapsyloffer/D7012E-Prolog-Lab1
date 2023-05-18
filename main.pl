@@ -1,90 +1,88 @@
-%rooms
-room(r1).
-room(r2).
-room(r3).
+% Move R1, R3
+action(
+    state(SteelKey, hasBrassKey, Box, Items, r1),
+    walk(r1, r3),
+    state(SteelKey, hasBrassKey, Box, Items, r3),
+).
 
-%items
-item(box).
-item(steelKey).
-item(brassKey).
+% Move R3 to R1
+action(
+    state(SteelKey, hasBrassKey, Box, Items, r3),
+    walk(r3, r1),
+    state(SteelKey, hasBrassKey, Box, Items, r1),
+).
 
-%room connections
-connected(r1, r2).
-connected(r1, r3).
 
-%the robot
-robot(B) :-
-    item(I1), item(I2), % 2 inventory slots
-    B = hold(I1, I2).
 
-%place items in the room
-room_item(I, R) :-
-    item(I), room(R).
+% Move R1, R2
+action(
+    state(hasSteelKey, BrassKey, Box, Items, r1),
+    walk(r1, r2),
+    state(hasSteelKey, BrassKey, Box, Items, r2),
+).
 
-%key requirement for the doors
-requires_key(r1, r2, steelKey).
-requires_key(r2, r1, steelKey).
-requires_key(r1, r3, brassKey).
-requires_key(r3, r1, brassKey).
+% Move R2 to R1
+action(
+    state(hasSteelKey, BrassKey, Box, Items, r2),
+    walk(r2, r1),
+    state(hasSteelKey, BrassKey, Box, Items, r1),
+).
 
-%If an item is in the room
-in_room(Item, Room) :- item(Item), room(Room).
 
-%we can only access a room if we have the key
-can_access(Bot, CurRoom, NextRoom) :-
-    room(NextRoom),
-    (
-        \+ requires_key(CurRoom, NextRoom, _)
-        ;
-        requires_key(CurRoom, NextRoom, Key),
-        Bot = hold(Key, _)
-    ).
 
-%moves
-%allow the robot to move
-move(Bot, CurRoom, NextRoom):-
-    room(CurRoom),
-    room(NextRoom),
-    connected(CurRoom, NextRoom),
-    robot(Bot).
+% Grab Steel Key
+action(
+    state(Room, BrassKey, Box, Items, Room),
+    grab(SteelKey, Room),
+    state(hasSteelKey, BrassKey, Box, ItemsNew, Room)):- 
+        Items < 2, 
+        ItemsNew is Items + 1.
 
-%The robot picks up an item in the room
-pick_up(Bot, Room, Item) :-
-    in_room(Item, Room),
-    robot(Bot),
-    \+ Bot = hold(_, _),  % The robot cannot hold more than 2 items
-    assert(picked_up(Item)).    % Mark it as picked up.
+% Grab Brass Key
+action(
+    state(Room, BrassKey, Box, Items, Room),
+    grab(BrassKey, Room),
+    state(SteelKey, hasBrassKey, Box, ItemsNew, Room)):- 
+        Items < 2, 
+        ItemsNew is Items + 1.
 
-% Let the robot drop a specific item
-drop(Bot, Room, Item) :-
-    robot(Bot),
-    Bot = hold(Item, _),
-    room_item(Item, Room).
+% Grab Box
+action(
+    state(Room, BrassKey, Box, Items, Room),
+    grab(Box, Room),
+    state(SteelKey, BrassKey, hasBox, ItemsNew, Room)):- 
+        Items < 2, 
+        ItemsNew is Items + 1.
 
-% Solve the problem within N steps
-solveR(State, N, Trace) :-
-    solveR(State, State, N, [], Trace).
 
-solveR(_, _, 0, _, _) :-
-    fail. % No solution found within N steps.
 
-solveR(_, _, 0, Trace, Trace) :-
-    in_room(box, r2).
+% Drop SteelKey
+action(
+    state(hasSteelKey, BrassKey, Box, Items, Room),
+    drop(SteelKey, Room),
+    state(Room, BrassKey, Box, ItemsNew, Room)):-
+        ItemsNew is Items -1.
 
-solveR(State, Bot, N, AccTrace, Trace) :-
+% Drop BrassKey
+action(
+    state(SteelKey, hasBrassKey, Box, Items, Room),
+    drop(SteelKey, Room),
+    state(SteelKey, Room, Box, ItemsNew, Room)):-
+        ItemsNew is Items -1.
+
+% Drop Box
+action(
+    state(SteelKey, BrassKey, hasBox, Items, Room),
+    drop(SteelKey, Room),
+    state(SteelKey, BrassKey, Room, ItemsNew, Room)):-
+        ItemsNew is Items -1.
+
+%Wincon
+solveR(state(_, _, r2, _, _), _,[]). %Om lådan är i rum 2 we good.
+
+%initgame
+solveR(State1, N, [Move| Trace2])  :-
     N > 0,
-    move(Bot, CurRoom, NextRoom),
-    NewN is N - 1,
-    solveR(State, Bot, NewN, [move(Bot, CurRoom, NextRoom) | AccTrace], Trace).
-
-solveR(State, Bot, N, AccTrace, Trace) :-
-    N > 0,
-    drop(Bot, CurRoom, Item),
-    NewN is N - 1,
-    solveR(State, Bot, NewN, [drop(Bot, CurRoom, Item) | AccTrace], Trace).
-
-solveR(State, Bot, N, AccTrace, Trace) :-
-    N > 0,
-    pick_up(Bot, CurRoom, Item),
-    NewN is N - 1,
-    solveR(State, Bot, NewN, [pick_up(Bot, CurRoom, Item) | AccTrace], Trace).
+    move(State1, Move, State2),
+    N2 is N - 1,
+    solveR(State2, N2, Trace2).
